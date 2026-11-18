@@ -178,7 +178,7 @@ export async function saveAttendance(input: AttendanceInput): Promise<ActionResp
     // 3. Création ou Mise à jour
     let record: AttendanceRecord;
     if (id) {
-      record = await prisma.attendance.update({
+      record = (await prisma.attendance.update({
         where: { id },
         data: {
           date: targetDate,
@@ -186,21 +186,21 @@ export async function saveAttendance(input: AttendanceInput): Promise<ActionResp
           assistantCount,
           observation: observation ? observation.trim() : null,
         },
-      });
+      })) as unknown as AttendanceRecord;
       return {
         success: true,
         message: "La journée d'accueil a été modifiée avec succès.",
         data: record,
       };
     } else {
-      record = await prisma.attendance.create({
+      record = (await prisma.attendance.create({
         data: {
           date: targetDate,
           dayType,
           assistantCount,
           observation: observation ? observation.trim() : null,
         },
-      });
+      })) as unknown as AttendanceRecord;
       return {
         success: true,
         message: "La journée d'accueil a été enregistrée avec succès.",
