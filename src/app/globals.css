@@ -22,6 +22,18 @@ body {
   color: var(--foreground);
   background: var(--background);
   font-feature-settings: "rlig" 1, "calt" 1;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@supports (padding-top: env(safe-area-inset-top)) {
+  body {
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
+/* Optimisation tactile mobile */
+button, a {
+  touch-action: manipulation;
 }
 
 @media print {

@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
+import { MobileBottomNav } from "./MobileBottomNav";
 import { cn } from "@/lib/utils";
 
 interface AppShellProps {
@@ -29,10 +30,12 @@ export function AppShell({ children }: AppShellProps) {
         )}
       >
         <Header onOpenMobileMenu={() => setMobileOpen(true)} />
-        <main className="flex-1 p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full">
+        <main className="flex-1 p-4 md:p-6 lg:p-8 pb-24 lg:pb-8 max-w-7xl mx-auto w-full">
           {children}
         </main>
       </div>
+
+      <MobileBottomNav onOpenMenu={() => setMobileOpen(true)} />
     </div>
   );
 }
