@@ -1,11 +1,13 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   FileSpreadsheet,
   FileDown,
   Printer,
+  RefreshCw,
   Filter,
+  CheckCircle2,
 } from "lucide-react";
 import { MOIS_FRANCAIS } from "@/lib/utils";
 import {
@@ -39,6 +41,7 @@ export default function RapportsPage() {
 
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
+  const [updateSuccess, setUpdateSuccess] = useState<string | null>(null);
 
   // Génération automatique du titre selon la sélection
   const defaultTitle = useMemo(() => {
@@ -54,35 +57,101 @@ export default function RapportsPage() {
 
   const activeTitle = customTitle.trim() || defaultTitle;
 
-  // Chargement des données
-  useEffect(() => {
-    async function loadData() {
-      setLoading(true);
-      try {
-        let url = `/api/attendances?pageSize=200&sortBy=date&sortOrder=asc`;
-        if (filterMode === "mensuel") {
-          url += `&year=${selectedYear}&month=${selectedMonth}`;
-        } else {
-          url += `&startDate=${startDate}&endDate=${endDate}`;
-        }
-
-        const res = await fetch(url);
-        const json = await res.json();
-        if (json.success && Array.isArray(json.records)) {
-          setRecords(json.records);
-        } else {
-          setRecords([]);
-        }
-      } catch (err) {
-        console.error("Erreur chargement rapport:", err);
-        setRecords([]);
-      } finally {
-        setLoading(false);
+  // Chargement des données fraîches sans cache
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      let url = `/api/attendances?pageSize=200&sortBy=date&sortOrder=asc&_t=${Date.now()}`;
+      if (filterMode === "mensuel") {
+        url += `&year=${selectedYear}&month=${selectedMonth}`;
+      } else {
+        url += `&startDate=${startDate}&endDate=${endDate}`;
       }
-    }
 
-    loadData();
+      const res = await fetch(url, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
+      });
+      const json = await res.json();
+      if (json.success && Array.isArray(json.records)) {
+        setRecords(json.records);
+      } else {
+        setRecords([]);
+      }
+    } catch (err) {
+      console.error("Erreur chargement rapport:", err);
+      setRecords([]);
+    } finally {
+      setLoading(false);
+    }
   }, [filterMode, selectedMonth, selectedYear, startDate, endDate]);
+
+  // Chargement initial et à chaque changement de filtre
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Réactualisation automatique quand l'utilisateur revient sur l'onglet du navigateur
+  useEffect(() => {
+    const handleFocus = () => {
+      loadData();
+    };
+
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        loadData();
+      }
+    });
+
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [loadData]);
+
+  // Modification directe d'un jour (Dimanche ou Jeudi) depuis le tableau
+  const handleUpdateAttendance = async (id: string, newCount: number): Promise<boolean> => {
+    const target = records.find((r) => r.id === id);
+    if (!target) return false;
+
+    // Mise à jour optimiste immédiate dans l'interface
+    setRecords((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, assistantCount: newCount } : r))
+    );
+
+    try {
+      // Date au format YYYY-MM-DD
+      const d = new Date(target.date);
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+      const res = await fetch("/api/attendances", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id,
+          date: dateStr,
+          assistantCount: newCount,
+          observation: target.observation,
+        }),
+      });
+
+      const json = await res.json();
+      if (json.success) {
+        setUpdateSuccess("Modification enregistrée et répercutée dans le rapport !");
+        setTimeout(() => setUpdateSuccess(null), 3000);
+        return true;
+      } else {
+        alert(json.message || "Erreur lors de la mise à jour");
+        loadData(); // Recharger en cas d'échec
+        return false;
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Erreur réseau lors de la mise à jour");
+      loadData();
+      return false;
+    }
+  };
 
   // Séparation Dimanche vs Jeudi et appariement ligne par ligne
   const { pairedRows, totalDimanche, totalJeudi, moyenneDimanche, moyenneJeudi } =
@@ -117,8 +186,10 @@ export default function RapportsPage() {
         };
 
         rows.push({
+          dimancheId: d ? d.id : undefined,
           dimancheDate: d ? formatD(d.date) : "",
           dimancheCount: d ? d.assistantCount : "",
+          jeudiId: j ? j.id : undefined,
           jeudiDate: j ? formatD(j.date) : "",
           jeudiCount: j ? j.assistantCount : "",
         });
@@ -400,6 +471,14 @@ export default function RapportsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Notification de mise à jour réussie */}
+      {updateSuccess && (
+        <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 rounded-xl flex items-center gap-2 text-xs font-semibold animate-in fade-in no-print">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>{updateSuccess}</span>
+        </div>
+      )}
+
       {/* Barre d'outils et sélecteur de période (Masqué à l'impression) */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-sm no-print">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -408,12 +487,21 @@ export default function RapportsPage() {
               Rapport Officiel d&apos;Assistance aux Réunions
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-              Présentation normalisée face-à-face (Dimanche &amp; Jeudi)
+              Présentation normalisée face-à-face (Dimanche &amp; Jeudi) — <span className="text-blue-600 dark:text-blue-400 font-medium">Cliquez sur un chiffre pour le modifier directement</span>
             </p>
           </div>
 
-          {/* Boutons d'export */}
+          {/* Boutons d'action et d'export */}
           <div className="flex items-center gap-2">
+            <button
+              onClick={loadData}
+              disabled={loading}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition"
+              title="Actualiser les données"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-blue-600" : ""}`} />
+              <span>Actualiser</span>
+            </button>
             <button
               onClick={() => window.print()}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition"
@@ -539,7 +627,7 @@ export default function RapportsPage() {
 
       {/* ZONE DU RAPPORT OFFICIEL (EXCLUSIVEMENT CE TABLEAU) */}
       <div id="official-report" className="py-2">
-        {loading ? (
+        {loading && records.length === 0 ? (
           <div className="bg-white p-12 text-center text-slate-500 border border-slate-200 rounded-lg max-w-3xl mx-auto shadow-sm">
             Chargement du rapport...
           </div>
@@ -551,6 +639,7 @@ export default function RapportsPage() {
             totalJeudi={totalJeudi}
             moyenneDimanche={moyenneDimanche}
             moyenneJeudi={moyenneJeudi}
+            onUpdateAttendance={handleUpdateAttendance}
           />
         )}
       </div>

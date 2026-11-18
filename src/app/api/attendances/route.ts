@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { getAttendances, saveAttendance, deleteAttendance } from "@/services/accueil.service";
 import type { DayType } from "@/types";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const noCacheHeaders = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+  Pragma: "no-cache",
+  Expires: "0",
+};
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,12 +39,12 @@ export async function GET(request: NextRequest) {
       pageSize,
     });
 
-    return NextResponse.json(result);
+    return NextResponse.json(result, { headers: noCacheHeaders });
   } catch (error) {
     console.error("GET /api/attendances error:", error);
     return NextResponse.json(
       { success: false, message: "Erreur serveur lors de la récupération." },
-      { status: 500 }
+      { status: 500, headers: noCacheHeaders }
     );
   }
 }
@@ -46,14 +54,21 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const result = await saveAttendance(body);
     if (!result.success) {
-      return NextResponse.json(result, { status: 400 });
+      return NextResponse.json(result, { status: 400, headers: noCacheHeaders });
     }
-    return NextResponse.json(result, { status: 201 });
+
+    revalidatePath("/rapports");
+    revalidatePath("/dashboard");
+    revalidatePath("/liste-accueils");
+    revalidatePath("/releves-mensuels");
+    revalidatePath("/statistiques");
+
+    return NextResponse.json(result, { status: 201, headers: noCacheHeaders });
   } catch (error) {
     console.error("POST /api/attendances error:", error);
     return NextResponse.json(
       { success: false, message: "Erreur serveur lors de la création." },
-      { status: 500 }
+      { status: 500, headers: noCacheHeaders }
     );
   }
 }
@@ -64,19 +79,26 @@ export async function PUT(request: NextRequest) {
     if (!body.id) {
       return NextResponse.json(
         { success: false, message: "L'identifiant (id) est obligatoire pour une modification." },
-        { status: 400 }
+        { status: 400, headers: noCacheHeaders }
       );
     }
     const result = await saveAttendance(body);
     if (!result.success) {
-      return NextResponse.json(result, { status: 400 });
+      return NextResponse.json(result, { status: 400, headers: noCacheHeaders });
     }
-    return NextResponse.json(result, { status: 200 });
+
+    revalidatePath("/rapports");
+    revalidatePath("/dashboard");
+    revalidatePath("/liste-accueils");
+    revalidatePath("/releves-mensuels");
+    revalidatePath("/statistiques");
+
+    return NextResponse.json(result, { status: 200, headers: noCacheHeaders });
   } catch (error) {
     console.error("PUT /api/attendances error:", error);
     return NextResponse.json(
       { success: false, message: "Erreur serveur lors de la modification." },
-      { status: 500 }
+      { status: 500, headers: noCacheHeaders }
     );
   }
 }
@@ -88,19 +110,26 @@ export async function DELETE(request: NextRequest) {
     if (!id) {
       return NextResponse.json(
         { success: false, message: "L'identifiant est obligatoire." },
-        { status: 400 }
+        { status: 400, headers: noCacheHeaders }
       );
     }
     const result = await deleteAttendance(id);
     if (!result.success) {
-      return NextResponse.json(result, { status: 400 });
+      return NextResponse.json(result, { status: 400, headers: noCacheHeaders });
     }
-    return NextResponse.json(result);
+
+    revalidatePath("/rapports");
+    revalidatePath("/dashboard");
+    revalidatePath("/liste-accueils");
+    revalidatePath("/releves-mensuels");
+    revalidatePath("/statistiques");
+
+    return NextResponse.json(result, { headers: noCacheHeaders });
   } catch (error) {
     console.error("DELETE /api/attendances error:", error);
     return NextResponse.json(
       { success: false, message: "Erreur serveur lors de la suppression." },
-      { status: 500 }
+      { status: 500, headers: noCacheHeaders }
     );
   }
 }

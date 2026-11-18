@@ -1,10 +1,13 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
+import { Check, X, Pencil } from "lucide-react";
 
 export interface ReportRowItem {
+  dimancheId?: string;
   dimancheDate?: string;
   dimancheCount?: number | string;
+  jeudiId?: string;
   jeudiDate?: string;
   jeudiCount?: number | string;
 }
@@ -16,6 +19,7 @@ interface OfficialReportTableProps {
   totalJeudi: number;
   moyenneDimanche: number;
   moyenneJeudi: number;
+  onUpdateAttendance?: (id: string, count: number) => Promise<boolean>;
 }
 
 export function OfficialReportTable({
@@ -25,14 +29,50 @@ export function OfficialReportTable({
   totalJeudi,
   moyenneDimanche,
   moyenneJeudi,
+  onUpdateAttendance,
 }: OfficialReportTableProps) {
-  // Formatage des nombres en notation française (avec virgule)
+  // Gestion de l'édition rapide inline d'une cellule
+  const [editingCell, setEditingCell] = useState<{ id: string; count: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+
   const formatMoyenne = (val: number) => {
     if (isNaN(val) || val === 0) return "0";
     return val.toLocaleString("fr-FR", {
       minimumFractionDigits: Number.isInteger(val) ? 0 : 1,
       maximumFractionDigits: 2,
     });
+  };
+
+  const handleStartEdit = (id?: string, currentCount?: number | string) => {
+    if (!id || !onUpdateAttendance) return;
+    setEditingCell({
+      id,
+      count: currentCount !== undefined ? String(currentCount) : "",
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingCell || !onUpdateAttendance) return;
+    const num = parseInt(editingCell.count, 10);
+    if (isNaN(num) || num < 0) {
+      alert("Veuillez saisir un nombre valide d'assistants (positif ou nul).");
+      return;
+    }
+    setSaving(true);
+    const ok = await onUpdateAttendance(editingCell.id, num);
+    setSaving(false);
+    if (ok) {
+      setEditingCell(null);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleSaveEdit();
+    } else if (e.key === "Escape") {
+      setEditingCell(null);
+    }
   };
 
   return (
@@ -94,22 +134,132 @@ export function OfficialReportTable({
               </td>
             </tr>
           ) : (
-            rows.map((row, idx) => (
-              <tr key={idx}>
-                <td className="border border-black py-1 px-2 text-center font-mono">
-                  {row.dimancheDate || ""}
-                </td>
-                <td className="border border-black py-1 px-3 text-right font-mono">
-                  {row.dimancheCount !== undefined ? row.dimancheCount : ""}
-                </td>
-                <td className="border border-black py-1 px-2 text-center font-mono">
-                  {row.jeudiDate || ""}
-                </td>
-                <td className="border border-black py-1 px-3 text-right font-mono">
-                  {row.jeudiCount !== undefined ? row.jeudiCount : ""}
-                </td>
-              </tr>
-            ))
+            rows.map((row, idx) => {
+              const isEditingDimanche = editingCell?.id === row.dimancheId;
+              const isEditingJeudi = editingCell?.id === row.jeudiId;
+
+              return (
+                <tr key={idx} className="hover:bg-slate-50/50 print:hover:bg-transparent">
+                  {/* Date Dimanche */}
+                  <td className="border border-black py-1 px-2 text-center font-mono">
+                    {row.dimancheDate || ""}
+                  </td>
+
+                  {/* Nombre Dimanche (Cliquable pour modifier) */}
+                  <td className="border border-black py-1 px-3 text-right font-mono relative group">
+                    {isEditingDimanche ? (
+                      <div className="flex items-center justify-end gap-1">
+                        <input
+                          type="number"
+                          autoFocus
+                          value={editingCell?.count || ""}
+                          onChange={(e) =>
+                            setEditingCell({
+                              ...editingCell!,
+                              count: e.target.value,
+                            })
+                          }
+                          onKeyDown={handleKeyDown}
+                          className="w-16 px-1 py-0.5 text-right font-mono border border-blue-500 rounded bg-blue-50 text-black text-xs font-bold"
+                          min="0"
+                          disabled={saving}
+                        />
+                        <button
+                          onClick={handleSaveEdit}
+                          disabled={saving}
+                          className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"
+                          title="Valider"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setEditingCell(null)}
+                          disabled={saving}
+                          className="p-1 text-slate-400 hover:bg-slate-100 rounded"
+                          title="Annuler"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => handleStartEdit(row.dimancheId, row.dimancheCount)}
+                        className={`flex items-center justify-end gap-1 ${
+                          row.dimancheId && onUpdateAttendance
+                            ? "cursor-pointer hover:text-blue-600 transition"
+                            : ""
+                        }`}
+                        title={row.dimancheId ? "Cliquer pour modifier" : ""}
+                      >
+                        <span>{row.dimancheCount !== undefined ? row.dimancheCount : ""}</span>
+                        {row.dimancheId && onUpdateAttendance && (
+                          <Pencil className="w-3 h-3 text-slate-300 opacity-0 group-hover:opacity-100 transition no-print" />
+                        )}
+                      </div>
+                    )}
+                  </td>
+
+                  {/* Date Jeudi */}
+                  <td className="border border-black py-1 px-2 text-center font-mono">
+                    {row.jeudiDate || ""}
+                  </td>
+
+                  {/* Nombre Jeudi (Cliquable pour modifier) */}
+                  <td className="border border-black py-1 px-3 text-right font-mono relative group">
+                    {isEditingJeudi ? (
+                      <div className="flex items-center justify-end gap-1">
+                        <input
+                          type="number"
+                          autoFocus
+                          value={editingCell?.count || ""}
+                          onChange={(e) =>
+                            setEditingCell({
+                              ...editingCell!,
+                              count: e.target.value,
+                            })
+                          }
+                          onKeyDown={handleKeyDown}
+                          className="w-16 px-1 py-0.5 text-right font-mono border border-blue-500 rounded bg-blue-50 text-black text-xs font-bold"
+                          min="0"
+                          disabled={saving}
+                        />
+                        <button
+                          onClick={handleSaveEdit}
+                          disabled={saving}
+                          className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"
+                          title="Valider"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setEditingCell(null)}
+                          disabled={saving}
+                          className="p-1 text-slate-400 hover:bg-slate-100 rounded"
+                          title="Annuler"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => handleStartEdit(row.jeudiId, row.jeudiCount)}
+                        className={`flex items-center justify-end gap-1 ${
+                          row.jeudiId && onUpdateAttendance
+                            ? "cursor-pointer hover:text-blue-600 transition"
+                            : ""
+                        }`}
+                        title={row.jeudiId ? "Cliquer pour modifier" : ""}
+                      >
+                        <span>{row.jeudiCount !== undefined ? row.jeudiCount : ""}</span>
+                        {row.jeudiId && onUpdateAttendance && (
+                          <Pencil className="w-3 h-3 text-slate-300 opacity-0 group-hover:opacity-100 transition no-print" />
+                        )}
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              );
+            })
           )}
         </tbody>
       </table>
