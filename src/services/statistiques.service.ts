@@ -64,7 +64,7 @@ export async function getStatsOverview(period?: {
       if (!maxAttendance || record.assistantCount > maxAttendance.count) {
         maxAttendance = {
           date: formatDateFR(record.date),
-          dayType: record.dayType,
+          dayType: record.dayType as DayType,
           count: record.assistantCount,
         };
       }
@@ -72,7 +72,7 @@ export async function getStatsOverview(period?: {
       if (!minAttendance || record.assistantCount < minAttendance.count) {
         minAttendance = {
           date: formatDateFR(record.date),
-          dayType: record.dayType,
+          dayType: record.dayType as DayType,
           count: record.assistantCount,
         };
       }
@@ -212,17 +212,17 @@ export async function getMonthlyReport(year: number, month: number): Promise<Mon
 
     const formatted = formatDateFR(rec.date);
     if (!meilleureJournee || rec.assistantCount > meilleureJournee.count) {
-      meilleureJournee = { date: formatted, dayType: rec.dayType, count: rec.assistantCount };
+      meilleureJournee = { date: formatted, dayType: rec.dayType as DayType, count: rec.assistantCount };
     }
     if (!pireJournee || rec.assistantCount < pireJournee.count) {
-      pireJournee = { date: formatted, dayType: rec.dayType, count: rec.assistantCount };
+      pireJournee = { date: formatted, dayType: rec.dayType as DayType, count: rec.assistantCount };
     }
 
     return {
       id: rec.id,
       date: rec.date.toISOString(),
       formattedDate: formatted,
-      dayType: rec.dayType,
+      dayType: rec.dayType as DayType,
       assistantCount: rec.assistantCount,
       observation: rec.observation,
     };

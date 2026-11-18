@@ -10,10 +10,16 @@ export const dynamic = "force-dynamic";
 export default async function ListeAccueilsPage() {
   // Chargement initial limité à 500 enregistrements pour éviter la surcharge mémoire.
   // Le composant AttendanceTable gère sa propre pagination côté client.
-  const records = await prisma.attendance.findMany({
-    orderBy: { date: "desc" },
-    take: 500,
-  });
+  let records: AttendanceRecord[] = [];
+  try {
+    records = (await prisma.attendance.findMany({
+      orderBy: { date: "desc" },
+      take: 500,
+    })) as AttendanceRecord[];
+  } catch (error) {
+    console.error("Erreur chargement initial liste-accueils:", error);
+    records = [];
+  }
 
   return (
     <div className="space-y-6">
