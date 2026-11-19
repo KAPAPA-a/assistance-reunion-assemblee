@@ -12,7 +12,7 @@ import {
   Sparkles,
   ShieldCheck,
   AlertTriangle,
-  Church,
+  Home,
 } from "lucide-react";
 
 export default function LoginPage() {
@@ -86,11 +86,11 @@ export default function LoginPage() {
         {/* Fronton supérieur en pierre / bois sculpté */}
         <div className="relative mx-auto w-[92%] sm:w-[95%] bg-gradient-to-b from-[#3a2218] to-[#25150f] border-t-4 border-l-4 border-r-4 border-[#523324] rounded-t-3xl p-3 sm:p-4 text-center shadow-2xl">
           <div className="flex items-center justify-center gap-2 text-amber-300">
-            <Church className="w-5 h-5 text-amber-400" />
+            <Home className="w-5 h-5 text-amber-400" />
             <span className="font-serif font-black tracking-widest text-xs sm:text-sm uppercase text-amber-200 drop-shadow">
               Salle d&apos;Accueil &amp; Réunions
             </span>
-            <Church className="w-5 h-5 text-amber-400" />
+            <Home className="w-5 h-5 text-amber-400" />
           </div>
           <p className="text-[10px] sm:text-xs text-amber-400/70 font-mono tracking-widest mt-0.5 uppercase">
             Porte d&apos;accès principale • Sécurisée

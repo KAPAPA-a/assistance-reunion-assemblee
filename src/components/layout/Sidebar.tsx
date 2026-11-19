@@ -15,7 +15,7 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
-  Church,
+  Home,
   LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -68,7 +68,7 @@ export function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen }: 
             onClick={() => setMobileOpen(false)}
           >
             <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-600/30 flex-shrink-0">
-              <Church className="w-6 h-6" />
+              <Home className="w-6 h-6" />
             </div>
             {!collapsed && (
               <div className="flex flex-col">
