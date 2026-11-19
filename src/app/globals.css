@@ -36,6 +36,17 @@ button, a {
   touch-action: manipulation;
 }
 
+/* Animation de secousse en cas d'erreur de mot de passe */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+
+.animate-shake {
+  animation: shake 0.4s ease-in-out;
+}
+
 @media print {
   @page {
     size: A4 portrait;

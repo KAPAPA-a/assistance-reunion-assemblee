@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Church,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -124,10 +125,29 @@ export function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen }: 
           })}
         </nav>
 
+        {/* Bouton de déconnexion / Sortir */}
+        <div className="p-3 border-t border-slate-800/80">
+          <button
+            onClick={async () => {
+              try {
+                await fetch("/api/auth/logout", { method: "POST" });
+                window.location.href = "/login";
+              } catch (e) {
+                window.location.href = "/login";
+              }
+            }}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-rose-400 hover:text-rose-200 hover:bg-rose-950/40 border border-transparent hover:border-rose-900/50 transition-colors"
+            title={collapsed ? "Déconnexion (Sortir)" : undefined}
+          >
+            <LogOut className="w-4 h-4 flex-shrink-0" />
+            {!collapsed && <span>Déconnexion</span>}
+          </button>
+        </div>
+
         {/* Pied de menu */}
-        <div className="p-3 border-t border-slate-800 text-xs text-slate-400 text-center">
+        <div className="p-2.5 border-t border-slate-800/50 text-[11px] text-slate-500 text-center">
           {!collapsed ? (
-            <p>Application de Suivi des Accueils v1.0</p>
+            <p>Gestion Accueil • KAPAPA</p>
           ) : (
             <span>v1.0</span>
           )}

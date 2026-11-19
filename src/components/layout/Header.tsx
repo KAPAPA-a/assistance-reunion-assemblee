@@ -2,16 +2,29 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { Menu, Moon, Sun, PlusCircle, Calendar } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Menu, Moon, Sun, PlusCircle, Calendar, User, LogOut } from "lucide-react";
 
 interface HeaderProps {
   onOpenMobileMenu: () => void;
 }
 
 export function Header({ onOpenMobileMenu }: HeaderProps) {
+  const router = useRouter();
   const [isDark, setIsDark] = useState(false);
   const [currentDateStr, setCurrentDateStr] = useState("");
   const [isMeetingDay, setIsMeetingDay] = useState<"DIMANCHE" | "JEUDI" | null>(null);
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+      router.push("/login");
+      router.refresh();
+    } catch (e) {
+      console.error(e);
+      window.location.href = "/login";
+    }
+  };
 
   useEffect(() => {
     // Vérification du thème enregistré ou préférence système
@@ -97,6 +110,22 @@ export function Header({ onOpenMobileMenu }: HeaderProps) {
         >
           {isDark ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5 text-slate-600" />}
         </button>
+
+        {/* Profil KAPAPA & Sortir / Déconnexion */}
+        <div className="flex items-center gap-1.5 pl-2 border-l border-slate-200 dark:border-slate-800">
+          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60 text-xs font-bold">
+            <User className="w-3.5 h-3.5" />
+            <span>KAPAPA</span>
+          </div>
+
+          <button
+            onClick={handleLogout}
+            className="p-2 rounded-xl text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+            title="Sortir (Déconnexion)"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+        </div>
       </div>
     </header>
   );

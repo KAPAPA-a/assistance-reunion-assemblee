@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { usePathname } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { MobileBottomNav } from "./MobileBottomNav";
@@ -11,8 +12,14 @@ interface AppShellProps {
 }
 
 export function AppShell({ children }: AppShellProps) {
+  const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Si l'utilisateur est sur la page de connexion, afficher plein écran sans le menu
+  if (pathname === "/login") {
+    return <div className="min-h-screen bg-slate-950 text-white">{children}</div>;
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex transition-colors">
