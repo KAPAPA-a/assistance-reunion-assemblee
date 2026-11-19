@@ -13,6 +13,7 @@ import { MOIS_FRANCAIS } from "@/lib/utils";
 import {
   OfficialReportTable,
   ReportRowItem,
+  ObservationItem,
 } from "@/components/reports/OfficialReportTable";
 import type { AttendanceRecord } from "@/types";
 import * as XLSX from "xlsx";
@@ -38,6 +39,9 @@ export default function RapportsPage() {
 
   // Titre personnalisable du rapport
   const [customTitle, setCustomTitle] = useState<string>("");
+
+  // Commentaire personnalisé (si l'utilisateur souhaite le modifier)
+  const [customComment, setCustomComment] = useState<string | null>(null);
 
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -86,24 +90,17 @@ export default function RapportsPage() {
     }
   }, [filterMode, selectedMonth, selectedYear, startDate, endDate]);
 
-  // Chargement initial et à chaque changement de filtre
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  // Réactualisation automatique quand l'utilisateur revient sur l'onglet du navigateur
+  // Réactualisation automatique quand l'utilisateur revient sur l'onglet
   useEffect(() => {
-    const handleFocus = () => {
-      loadData();
-    };
-
+    const handleFocus = () => loadData();
     window.addEventListener("focus", handleFocus);
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") {
-        loadData();
-      }
+      if (document.visibilityState === "visible") loadData();
     });
-
     return () => {
       window.removeEventListener("focus", handleFocus);
     };
@@ -120,7 +117,6 @@ export default function RapportsPage() {
     );
 
     try {
-      // Date au format YYYY-MM-DD
       const d = new Date(target.date);
       const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
@@ -142,7 +138,7 @@ export default function RapportsPage() {
         return true;
       } else {
         alert(json.message || "Erreur lors de la mise à jour");
-        loadData(); // Recharger en cas d'échec
+        loadData();
         return false;
       }
     } catch (err) {
@@ -154,58 +150,122 @@ export default function RapportsPage() {
   };
 
   // Séparation Dimanche vs Jeudi et appariement ligne par ligne
-  const { pairedRows, totalDimanche, totalJeudi, moyenneDimanche, moyenneJeudi } =
-    useMemo(() => {
-      const dimanches = records
-        .filter((r) => r.dayType === "DIMANCHE")
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const {
+    pairedRows,
+    totalDimanche,
+    totalJeudi,
+    moyenneDimanche,
+    moyenneJeudi,
+    observationsList,
+    autoCommentary,
+  } = useMemo(() => {
+    const dimanches = records
+      .filter((r) => r.dayType === "DIMANCHE")
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-      const jeudis = records
-        .filter((r) => r.dayType === "JEUDI")
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const jeudis = records
+      .filter((r) => r.dayType === "JEUDI")
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-      const maxRows = Math.max(dimanches.length, jeudis.length);
-      const rows: ReportRowItem[] = [];
+    const maxRows = Math.max(dimanches.length, jeudis.length);
+    const rows: ReportRowItem[] = [];
 
-      let sumDimanche = 0;
-      let sumJeudi = 0;
+    let sumDimanche = 0;
+    let sumJeudi = 0;
 
-      for (let i = 0; i < maxRows; i++) {
-        const d = dimanches[i];
-        const j = jeudis[i];
+    let peakRecord: { date: string; dayType: string; count: number } | null = null;
+    const obsList: ObservationItem[] = [];
 
-        if (d) sumDimanche += d.assistantCount;
-        if (j) sumJeudi += j.assistantCount;
+    for (let i = 0; i < maxRows; i++) {
+      const d = dimanches[i];
+      const j = jeudis[i];
 
-        const formatD = (dateVal: Date | string) => {
-          const dt = new Date(dateVal);
-          const day = String(dt.getDate()).padStart(2, "0");
-          const month = String(dt.getMonth() + 1).padStart(2, "0");
-          const year = dt.getFullYear();
-          return `${day}/${month}/${year}`;
-        };
-
-        rows.push({
-          dimancheId: d ? d.id : undefined,
-          dimancheDate: d ? formatD(d.date) : "",
-          dimancheCount: d ? d.assistantCount : "",
-          jeudiId: j ? j.id : undefined,
-          jeudiDate: j ? formatD(j.date) : "",
-          jeudiCount: j ? j.assistantCount : "",
-        });
+      if (d) {
+        sumDimanche += d.assistantCount;
+        if (!peakRecord || d.assistantCount > peakRecord.count) {
+          peakRecord = { date: formatD(d.date), dayType: "Dimanche", count: d.assistantCount };
+        }
+        if (d.observation && d.observation.trim()) {
+          obsList.push({ date: formatD(d.date), dayType: "Dimanche", text: d.observation.trim() });
+        }
       }
 
-      const avgDimanche = dimanches.length > 0 ? sumDimanche / dimanches.length : 0;
-      const avgJeudi = jeudis.length > 0 ? sumJeudi / jeudis.length : 0;
+      if (j) {
+        sumJeudi += j.assistantCount;
+        if (!peakRecord || j.assistantCount > peakRecord.count) {
+          peakRecord = { date: formatD(j.date), dayType: "Jeudi", count: j.assistantCount };
+        }
+        if (j.observation && j.observation.trim()) {
+          obsList.push({ date: formatD(j.date), dayType: "Jeudi", text: j.observation.trim() });
+        }
+      }
 
-      return {
-        pairedRows: rows,
-        totalDimanche: sumDimanche,
-        totalJeudi: sumJeudi,
-        moyenneDimanche: avgDimanche,
-        moyenneJeudi: avgJeudi,
-      };
-    }, [records]);
+      function formatD(dateVal: Date | string) {
+        const dt = new Date(dateVal);
+        const day = String(dt.getDate()).padStart(2, "0");
+        const month = String(dt.getMonth() + 1).padStart(2, "0");
+        const year = dt.getFullYear();
+        return `${day}/${month}/${year}`;
+      }
+
+      rows.push({
+        dimancheId: d ? d.id : undefined,
+        dimancheDate: d ? formatD(d.date) : "",
+        dimancheCount: d ? d.assistantCount : "",
+        jeudiId: j ? j.id : undefined,
+        jeudiDate: j ? formatD(j.date) : "",
+        jeudiCount: j ? j.assistantCount : "",
+      });
+    }
+
+    const avgDimanche = dimanches.length > 0 ? sumDimanche / dimanches.length : 0;
+    const avgJeudi = jeudis.length > 0 ? sumJeudi / jeudis.length : 0;
+    const totalGeneral = sumDimanche + sumJeudi;
+    const totalJours = dimanches.length + jeudis.length;
+
+    // Construction du commentaire automatique pertinent
+    let comment = "";
+    if (totalJours === 0) {
+      comment = "Aucune réunion d'accueil n'a été enregistrée pour cette période.";
+    } else {
+      const p1 = `Pour cette période, un total général de ${totalGeneral.toLocaleString("fr-FR")} assistants a été enregistré sur ${totalJours} réunions (${dimanches.length} dimanches et ${jeudis.length} jeudis).`;
+
+      let pComp = "";
+      if (dimanches.length > 0 && jeudis.length > 0) {
+        const fmtAvgDim = avgDimanche.toLocaleString("fr-FR", { maximumFractionDigits: 2 });
+        const fmtAvgJeu = avgJeudi.toLocaleString("fr-FR", { maximumFractionDigits: 2 });
+
+        if (avgDimanche > avgJeudi) {
+          const ecart = (avgDimanche - avgJeudi).toLocaleString("fr-FR", { maximumFractionDigits: 2 });
+          pComp = `La moyenne de présence du dimanche (${fmtAvgDim}) est supérieure à celle du jeudi (${fmtAvgJeu}), soit un écart moyen de +${ecart} assistants par réunion dominicale.`;
+        } else if (avgJeudi > avgDimanche) {
+          const ecart = (avgJeudi - avgDimanche).toLocaleString("fr-FR", { maximumFractionDigits: 2 });
+          pComp = `La moyenne de présence du jeudi (${fmtAvgJeu}) dépasse celle du dimanche (${fmtAvgDim}), avec une avance moyenne de +${ecart} assistants en semaine.`;
+        } else {
+          pComp = `L'assistance moyenne est équilibrée entre le dimanche et le jeudi avec exactement ${fmtAvgDim} assistants par réunion.`;
+        }
+      }
+
+      let pPeak = "";
+      if (peakRecord && totalJours > 1) {
+        pPeak = `Le pic d'affluence de la période a été atteint le ${peakRecord.date} (${peakRecord.dayType}) avec ${peakRecord.count} assistants.`;
+      }
+
+      comment = [p1, pComp, pPeak].filter(Boolean).join(" ");
+    }
+
+    return {
+      pairedRows: rows,
+      totalDimanche: sumDimanche,
+      totalJeudi: sumJeudi,
+      moyenneDimanche: avgDimanche,
+      moyenneJeudi: avgJeudi,
+      observationsList: obsList,
+      autoCommentary: comment,
+    };
+  }, [records]);
+
+  const activeCommentary = customComment !== null ? customComment : autoCommentary;
 
   const formatMoyenne = (val: number) => {
     if (isNaN(val) || val === 0) return "0";
@@ -215,7 +275,7 @@ export default function RapportsPage() {
     });
   };
 
-  // Export PDF conforme au modèle exact
+  // Export PDF conforme au modèle avec les commentaires
   const handleExportPDF = () => {
     const doc = new jsPDF({
       orientation: "portrait",
@@ -405,6 +465,44 @@ export default function RapportsPage() {
       margin: { left: 25, right: 25 },
     });
 
+    // 4. Section COMMENTAIRES & OBSERVATIONS
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    finalY = (doc as any).lastAutoTable.finalY + 6;
+    if (finalY > 230) {
+      doc.addPage();
+      finalY = 20;
+    }
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.text("COMMENTAIRES & OBSERVATIONS :", 25, finalY);
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.3);
+    doc.line(25, finalY + 1.5, 185, finalY + 1.5);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    const splitComments = doc.splitTextToSize(activeCommentary, 160);
+    doc.text(splitComments, 25, finalY + 6);
+
+    let nextY = finalY + 6 + splitComments.length * 4.5;
+
+    // Observations spécifiques si existantes
+    if (observationsList.length > 0) {
+      nextY += 3;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.text("Remarques particulières relevées :", 25, nextY);
+      nextY += 4;
+      doc.setFont("helvetica", "normal");
+      observationsList.forEach((obs) => {
+        const line = `• ${obs.date} (${obs.dayType}) : ${obs.text}`;
+        const splitLine = doc.splitTextToSize(line, 155);
+        doc.text(splitLine, 27, nextY);
+        nextY += splitLine.length * 4;
+      });
+    }
+
     const cleanFilename = activeTitle
       .toLowerCase()
       .replace(/[^a-z0-9]/g, "_")
@@ -413,7 +511,7 @@ export default function RapportsPage() {
     doc.save(`${cleanFilename}.pdf`);
   };
 
-  // Export Excel conforme
+  // Export Excel avec les commentaires
   const handleExportExcel = () => {
     const wsData: (string | number)[][] = [
       [activeTitle, "", "", ""],
@@ -430,16 +528,9 @@ export default function RapportsPage() {
       ]);
     });
 
-    // Ligne vide
     wsData.push(["", "", "", ""]);
-
-    // Total
     wsData.push(["TOTAL", totalDimanche, "TOTAL", totalJeudi]);
-
-    // Ligne vide
     wsData.push(["", "", "", ""]);
-
-    // Moyenne
     wsData.push([
       "MOYENNE",
       Number(moyenneDimanche.toFixed(2)),
@@ -447,14 +538,26 @@ export default function RapportsPage() {
       Number(moyenneJeudi.toFixed(2)),
     ]);
 
+    // Commentaires
+    wsData.push(["", "", "", ""]);
+    wsData.push(["COMMENTAIRES & OBSERVATIONS", "", "", ""]);
+    wsData.push([activeCommentary, "", "", ""]);
+
+    if (observationsList.length > 0) {
+      wsData.push(["Remarques particulières :", "", "", ""]);
+      observationsList.forEach((obs) => {
+        wsData.push([`${obs.date} (${obs.dayType}) : ${obs.text}`, "", "", ""]);
+      });
+    }
+
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-    // Fusions des cellules d'en-tête
     ws["!merges"] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }, // Titre complet (A1:D1)
-      { s: { r: 1, c: 0 }, e: { r: 1, c: 1 } }, // DIMANCHE (A2:B2)
-      { s: { r: 1, c: 2 }, e: { r: 1, c: 3 } }, // JEUDI (C2:D2)
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 1 } },
+      { s: { r: 1, c: 2 }, e: { r: 1, c: 3 } },
+      { s: { r: wsData.length - (observationsList.length > 0 ? observationsList.length + 3 : 2), c: 0 }, e: { r: wsData.length - (observationsList.length > 0 ? observationsList.length + 3 : 2), c: 3 } },
     ];
 
     ws["!cols"] = [{ wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 18 }];
@@ -487,7 +590,7 @@ export default function RapportsPage() {
               Rapport Officiel d&apos;Assistance aux Réunions
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-              Présentation normalisée face-à-face (Dimanche &amp; Jeudi) — <span className="text-blue-600 dark:text-blue-400 font-medium">Cliquez sur un chiffre pour le modifier directement</span>
+              Présentation normalisée face-à-face (Dimanche &amp; Jeudi) avec commentaires d&apos;analyse
             </p>
           </div>
 
@@ -603,7 +706,7 @@ export default function RapportsPage() {
             </div>
           )}
 
-          {/* Personnalisation manuelle du titre si nécessaire */}
+          {/* Personnalisation manuelle du titre */}
           <div className="flex items-center gap-2 ml-auto w-full lg:w-auto mt-2 lg:mt-0">
             <span className="text-slate-500">Titre :</span>
             <input
@@ -625,7 +728,7 @@ export default function RapportsPage() {
         </div>
       </div>
 
-      {/* ZONE DU RAPPORT OFFICIEL (EXCLUSIVEMENT CE TABLEAU) */}
+      {/* ZONE DU RAPPORT OFFICIEL AVEC SES COMMENTAIRES EN DESSOUS */}
       <div id="official-report" className="py-2">
         {loading && records.length === 0 ? (
           <div className="bg-white p-12 text-center text-slate-500 border border-slate-200 rounded-lg max-w-3xl mx-auto shadow-sm">
@@ -639,7 +742,10 @@ export default function RapportsPage() {
             totalJeudi={totalJeudi}
             moyenneDimanche={moyenneDimanche}
             moyenneJeudi={moyenneJeudi}
+            commentaire={activeCommentary}
+            observationsList={observationsList}
             onUpdateAttendance={handleUpdateAttendance}
+            onUpdateCommentaire={(newComment) => setCustomComment(newComment)}
           />
         )}
       </div>
